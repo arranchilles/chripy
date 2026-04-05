@@ -31,6 +31,7 @@ func (c *apiConfig) refreshHandler(writer http.ResponseWriter, r *http.Request) 
 		fmt.Println(err.Error())
 		return
 	}
+
 	accessToken, err := auth.MakeJWT(user.UserID, c.secret, time.Hour)
 
 	if err != nil {
@@ -43,10 +44,5 @@ func (c *apiConfig) refreshHandler(writer http.ResponseWriter, r *http.Request) 
 		Token: accessToken,
 	}
 
-	if err != nil {
-		respondWithError(writer, 500, "Server Error")
-		fmt.Println(err.Error())
-		return
-	}
 	respondWithJSON(writer, 200, newAccessToken)
 }

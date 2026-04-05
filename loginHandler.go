@@ -4,6 +4,8 @@ import (
 	"chirpy/internal/auth"
 	"chirpy/internal/database"
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -27,14 +29,17 @@ func (c *apiConfig) handleLogin(writer http.ResponseWriter, request *http.Reques
 
 	if err != nil {
 		respondWithError(writer, 500, "Server Error")
+		return
 	}
 
 	if userData.Email == "" {
 		respondWithError(writer, 400, "Email needed in JSON body")
+		return
 	}
 
 	if userData.Password == "" {
 		respondWithError(writer, 400, "Password needed in JSON body")
+		return
 	}
 
 	expiresIn = time.Duration(userData.ExpiresIn) * time.Second
@@ -48,29 +53,19 @@ func (c *apiConfig) handleLogin(writer http.ResponseWriter, request *http.Reques
 	}
 
 	fmt.Println(expiresIn)
-	user, err := c.dbQueries.GetUser(context.Background(), userData.Email)
+
+	user, err := c.validateUser(userData)
 
 	if err != nil {
-		respondWithError(writer, 500, "Server Error")
-		return
-	}
-
-	isPassword, err := auth.CheckPasswordHash(userData.Password, user.Password)
-
-	if err != nil {
-		respondWithError(writer, 500, "Server Error")
-		return
-	}
-
-	if isPassword != true {
-		respondWithError(writer, 401, "Incorrect Password")
+		errorHandler(writer, err)
 		return
 	}
 
 	token, err := auth.MakeJWT(user.ID, c.secret, time.Duration(expiresIn))
 
 	if err != nil {
-		respondWithError(writer, 500, "Server Error")
+		errorHandler(writer, NewAppError(ErrorTypeInternal, "Server Error", err))
+		return
 	}
 
 	refreshToken := auth.MakeRefreshToken()
@@ -79,6 +74,7 @@ func (c *apiConfig) handleLogin(writer http.ResponseWriter, request *http.Reques
 
 	if err != nil {
 		respondWithError(writer, 500, "Server Error")
+		return
 	}
 
 	userResponse := LoginResponse{
@@ -111,4 +107,30 @@ func (c *apiConfig) addRefeshToken(token string, userId uuid.UUID) error {
 	}
 
 	return nil
+}
+
+func (c *apiConfig) validateUser(userInput userInfo) (database.User, error) {
+
+	user, err := c.dbQueries.GetUser(context.Background(), userInput.Email)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return database.User{}, NewAppError(ErrorTypeValidation, "Invalid Email or Password", err)
+		}
+
+		return database.User{}, NewAppError(ErrorTypeInternal, "Internal Server Error", err)
+
+	}
+
+	isPassword, err := auth.CheckPasswordHash(userInput.Password, user.Password)
+
+	if err != nil {
+		return database.User{}, NewAppError(ErrorTypeInternal, "Internal Server Error", err)
+	}
+
+	if isPassword != true {
+		return database.User{}, NewAppError(ErrorTypeValidation, "Invalid Email or Password", nil)
+	}
+
+	return user, nil
 }

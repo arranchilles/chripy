@@ -38,6 +38,7 @@ func main() {
 	handler.HandleFunc("GET /api/chirps", config.chirpGetHandler)
 	handler.HandleFunc("GET /api/chirps/{chirpID}", config.chirpGetSingleHandler)
 	handler.HandleFunc("POST /api/users", config.handleUsersPost)
+	handler.HandleFunc("PUT /api/users", config.handleUsersPut)
 	handler.HandleFunc("POST /api/login", config.handleLogin)
 	handler.HandleFunc("POST /api/revoke", config.revokeHandler)
 	handler.HandleFunc("POST /api/refresh", config.refreshHandler)

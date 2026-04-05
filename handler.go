@@ -1,6 +1,7 @@
 package main
 
 import (
+	"chirpy/internal/auth"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -104,4 +105,28 @@ func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 		fmt.Print(err, "respondjson error")
 	}
 	w.Write(responsePayload)
+}
+
+func (c *apiConfig) checkUserIdentity(request *http.Request) (uuid.UUID, error) {
+
+	token, err := auth.GetBearerToken(request.Header)
+
+	if err != nil {
+		return uuid.UUID{}, &AppError{
+			Type:    ErrorTypeAuth,
+			Message: "No Authorization Token in header",
+			Err:     err,
+		}
+	}
+
+	userID, err := auth.ValidateJWT(token, c.secret)
+
+	if err != nil {
+		return uuid.UUID{}, &AppError{
+			Type:    ErrorTypeAuth,
+			Message: "Authorization token in header is Invalid",
+			Err:     err,
+		}
+	}
+	return userID, nil
 }

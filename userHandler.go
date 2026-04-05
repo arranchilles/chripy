@@ -64,3 +64,49 @@ func (c *apiConfig) handleUsersPost(w http.ResponseWriter, r *http.Request) {
 
 	respondWithJSON(w, 201, responseData)
 }
+
+func (c *apiConfig) handleUsersPut(writer http.ResponseWriter, request *http.Request) {
+
+	userID, err := c.checkUserIdentity(request)
+
+	if err != nil {
+		errorHandler(writer, err)
+		return
+	}
+
+	newInfo, err := jsonDecode[userInfo](request.Body)
+
+	if err != nil {
+		errorHandler(writer, err)
+		return
+	}
+
+	hash, err := auth.HashPassword(newInfo.Password)
+
+	if err != nil {
+		errorHandler(writer, err)
+		return
+	}
+
+	args := database.UpdateUserInfoParams{
+		ID:       userID,
+		Email:    newInfo.Email,
+		Password: hash,
+	}
+
+	user, err := c.dbQueries.UpdateUserInfo(context.Background(), args)
+
+	if err != nil {
+		errorHandler(writer, NewAppError(ErrorTypeAuth, "Invalid Operation", err))
+		return
+	}
+
+	responseData := UserResponse{
+		Id:        user.ID,
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
+		Email:     user.Email,
+	}
+
+	respondWithJSON(writer, 200, responseData)
+}
