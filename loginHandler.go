@@ -77,13 +77,14 @@ func (c *apiConfig) handleLogin(writer http.ResponseWriter, request *http.Reques
 		return
 	}
 
-	userResponse := LoginResponse{
+	userResponse := UserResponse{
 		Id:           user.ID,
 		CreatedAt:    user.CreatedAt,
 		UpdatedAt:    user.UpdatedAt,
 		Email:        user.Email,
 		Token:        token,
 		RefreshToken: refreshToken,
+		IsChirpyRed:  user.IsChirpRed,
 	}
 
 	respondWithJSON(writer, 200, userResponse)

@@ -4,8 +4,11 @@ import (
 	"chirpy/internal/auth"
 	"chirpy/internal/database"
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/google/uuid"
@@ -19,7 +22,17 @@ type ChirpResponse struct {
 	Userid    uuid.UUID `json:"user_id"`
 }
 
-type chripsResponse []ChirpResponse
+type chirpsResponse []ChirpResponse
+
+func (c chirpsResponse) sortByCreatedAt(direction string) {
+	sort.Slice(c, func(i, j int) bool {
+		if direction == "desc" {
+			return c[i].CreatedAt.After(c[j].CreatedAt)
+		} else {
+			return c[i].CreatedAt.Before(c[j].CreatedAt)
+		}
+	})
+}
 
 func (c *apiConfig) chirpPostHandler(writer http.ResponseWriter, request *http.Request) {
 	chirpData, err := jsonDecode[chirp](request.Body)
@@ -71,8 +84,19 @@ func (c *apiConfig) chirpPostHandler(writer http.ResponseWriter, request *http.R
 }
 
 func (c *apiConfig) chirpGetHandler(writer http.ResponseWriter, r *http.Request) {
-	var responseData chripsResponse
-	chirps, err := c.dbQueries.GetChirps(context.Background())
+	var responseData chirpsResponse
+	var chirps []database.Chirp
+	var err error
+
+	if id := r.URL.Query().Get("author_id"); id != "" {
+		uuid, err := uuid.Parse(id)
+		if err != nil {
+			errorHandler(writer, err)
+		}
+		chirps, err = c.dbQueries.GetChirpsByAuthor(context.Background(), uuid)
+	} else {
+		chirps, err = c.dbQueries.GetChirps(context.Background())
+	}
 
 	if err != nil {
 		fmt.Print(err.Error())
@@ -88,6 +112,10 @@ func (c *apiConfig) chirpGetHandler(writer http.ResponseWriter, r *http.Request)
 		item.Body = chirpData.Body
 		item.Userid = chirpData.UserID
 		responseData = append(responseData, item)
+	}
+
+	if sort := r.URL.Query().Get("sort"); sort != "" {
+		responseData.sortByCreatedAt(sort)
 	}
 
 	respondWithJSON(writer, 200, responseData)
@@ -125,4 +153,64 @@ func (c *apiConfig) chirpGetSingleHandler(writer http.ResponseWriter, r *http.Re
 
 	respondWithJSON(writer, 200, responseData)
 
+}
+
+func (c *apiConfig) chirpDeleteSingleHandler(writer http.ResponseWriter, request *http.Request) {
+
+	userID, err := c.checkUserIdentity(request)
+
+	if err != nil {
+		errorHandler(writer, NewAppError(ErrorTypeAuth, "Unorthorized Access to Endpoint", err))
+		return
+	}
+
+	chirpURLValue := request.PathValue("chirpID")
+
+	if chirpURLValue == "" {
+		errorHandler(writer, NewAppError(ErrorTypeValidation, "Need Chirp ID in the last url field", err))
+		return
+	}
+
+	chirpID, err := uuid.Parse(chirpURLValue)
+
+	if err != nil {
+		errorHandler(writer, NewAppError(ErrorTypeValidation, "Invlaid chirp ID", err))
+		return
+	}
+
+	chirp, err := c.dbQueries.GetChirp(context.Background(), chirpID)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			errorHandler(writer, NewAppError(ErrorTypeResourceNotFound, "No Chirp by that ID", err))
+			return
+		}
+		errorHandler(writer, err)
+		return
+	}
+
+	if chirp.UserID != userID {
+		errorHandler(
+			writer,
+			NewAppError(
+				ErrorTypeForbidden,
+				"Requested Chirp does not belong to user",
+				fmt.Errorf("requested chrip belongs to %v. Unortherized by %v", chirp.UserID.String(), userID.String()),
+			),
+		)
+		return
+	}
+
+	err = c.dbQueries.DeleteChirp(context.Background(), chirpID)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			errorHandler(writer, NewAppError(ErrorTypeResourceNotFound, "No Chirp by that ID", err))
+			return
+		}
+		errorHandler(writer, err)
+		return
+	}
+
+	respondWithJSON(writer, 204, nil)
 }

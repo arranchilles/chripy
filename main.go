@@ -17,6 +17,7 @@ type apiConfig struct {
 	dbQueries      *database.Queries
 	platfrom       string
 	secret         string
+	polkaKey       string
 }
 
 func main() {
@@ -28,6 +29,7 @@ func main() {
 	config.dbQueries = dbQueries
 	config.platfrom = os.Getenv("PLATFORM")
 	config.secret = os.Getenv("SECRET")
+	config.polkaKey = os.Getenv("POLKA_KEY")
 
 	handler := http.NewServeMux()
 	fileHandler := config.middlewareMetricsInc(http.StripPrefix("/app", http.FileServer(http.Dir("."))))
@@ -37,11 +39,13 @@ func main() {
 	handler.HandleFunc("POST /api/chirps", config.chirpPostHandler)
 	handler.HandleFunc("GET /api/chirps", config.chirpGetHandler)
 	handler.HandleFunc("GET /api/chirps/{chirpID}", config.chirpGetSingleHandler)
+	handler.HandleFunc("DELETE /api/chirps/{chirpID}", config.chirpDeleteSingleHandler)
 	handler.HandleFunc("POST /api/users", config.handleUsersPost)
 	handler.HandleFunc("PUT /api/users", config.handleUsersPut)
 	handler.HandleFunc("POST /api/login", config.handleLogin)
 	handler.HandleFunc("POST /api/revoke", config.revokeHandler)
 	handler.HandleFunc("POST /api/refresh", config.refreshHandler)
+	handler.HandleFunc("POST /api/polka/webhooks", config.webhooksPostHandler)
 	handler.HandleFunc("GET /admin/metrics", config.handleMetrics)
 	handler.HandleFunc("POST /admin/reset", config.handleReset)
 

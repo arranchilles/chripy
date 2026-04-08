@@ -10,9 +10,11 @@ import (
 type ErrorType string
 
 const (
-	ErrorTypeAuth       ErrorType = "auth"
-	ErrorTypeValidation ErrorType = "validation"
-	ErrorTypeInternal   ErrorType = "internal"
+	ErrorTypeAuth             ErrorType = "auth"
+	ErrorTypeValidation       ErrorType = "validation"
+	ErrorTypeInternal         ErrorType = "internal"
+	ErrorTypeForbidden        ErrorType = "forbidden"
+	ErrorTypeResourceNotFound ErrorType = "Resource Not Found"
 )
 
 type AppError struct {
@@ -58,6 +60,10 @@ func appErrorHandler(writer http.ResponseWriter, err *AppError) {
 		respondWithError(writer, 401, err.Message)
 	case ErrorTypeValidation:
 		respondWithError(writer, 400, err.Message)
+	case ErrorTypeForbidden:
+		respondWithError(writer, 403, err.Message)
+	case ErrorTypeResourceNotFound:
+		respondWithError(writer, 404, err.Message)
 	case ErrorTypeInternal:
 		respondWithError(writer, 500, err.Message)
 	default:

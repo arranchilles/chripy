@@ -60,3 +60,17 @@ func GetBearerToken(headers http.Header) (string, error) {
 
 	return rawToken, nil
 }
+
+func GetAPIKey(headers http.Header) (string, error) {
+	rawToken := headers.Get("Authorization")
+
+	if rawToken == "" {
+		return "", fmt.Errorf("No API Key token")
+	}
+
+	if strings.HasPrefix(rawToken, "ApiKey ") {
+		return strings.TrimPrefix(rawToken, "ApiKey "), nil
+	}
+
+	return rawToken, nil
+}
